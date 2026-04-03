@@ -8,7 +8,7 @@ const config = {
   parent: 'game',
   width: 960,
   height: 540,
-  backgroundColor: '#101827',
+  backgroundColor: '#0b1020',
   pixelArt: true,
   roundPixels: true,
   physics: {
@@ -17,6 +17,9 @@ const config = {
       gravity: { y: 0 },
       debug: false
     }
+  },
+  input: {
+    activePointers: 4
   },
   scene: [BootScene, TitleScene, OverworldScene, BattleScene],
   scale: {

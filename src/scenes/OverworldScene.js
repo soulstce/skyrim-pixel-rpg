@@ -16,7 +16,13 @@ export default class OverworldScene extends Phaser.Scene {
     this.ui = new UISystem(this);
     this.state = GAME_STATE;
     this.inDialogue = false;
-    this.actionCooldown = false;
+    this.touchDirections = { up: false, down: false, left: false, right: false };
+    this.lastFacing = 'down';
+    this.activeInteractable = null;
+
+    this.input.addPointer(3);
+    this.input.on('pointerup', () => this.clearTouchDirections());
+    this.input.on('gameout', () => this.clearTouchDirections());
 
     this.buildWorld();
     this.buildPlayer();
@@ -24,117 +30,195 @@ export default class OverworldScene extends Phaser.Scene {
     this.buildControls();
     this.bindInput();
     this.refreshUI();
-    this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
+
     this.cameras.main.setBounds(0, 0, 1920, 1280);
+    this.cameras.main.setRoundPixels(true);
+    this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
+    this.cameras.main.setDeadzone(120, 90);
+    this.cameras.main.centerOn(this.player.x, this.player.y);
   }
 
   buildWorld() {
-    const g = this.add.graphics();
-    g.fillStyle(0x2f2e44, 1).fillRect(0, 0, 1920, 1280);
-    g.fillStyle(0x4d3f31, 1).fillRect(0, 650, 1920, 630);
-    g.fillStyle(0x5a4a38, 1).fillRect(0, 720, 700, 220);
-    g.fillStyle(0x6c563f, 1).fillRect(700, 650, 520, 160);
-    g.fillStyle(0x41562f, 1).fillRect(1110, 420, 810, 860);
-    g.fillStyle(0x79604a, 1).fillRect(780, 210, 360, 260);
-    g.fillStyle(0x23322c, 1).fillRect(1180, 140, 640, 460);
-    g.fillStyle(0x1f281b, 1).fillRect(1260, 80, 520, 360);
+    const worldW = 1920;
+    const worldH = 1280;
 
-    this.add.text(120, 680, 'Cinder Hollow', { fontFamily: 'Arial', fontSize: '22px', color: '#ffe3a3' });
-    this.add.text(1280, 90, 'North Path', { fontFamily: 'Arial', fontSize: '22px', color: '#d5f8a5' });
-    this.add.text(830, 235, 'Shrine Ruins', { fontFamily: 'Arial', fontSize: '18px', color: '#ffae88' });
+    this.add.tileSprite(0, 0, worldW, worldH, 'grass-tile').setOrigin(0).setDepth(-20);
+    this.add.tileSprite(60, 640, 760, 440, 'dirt-tile').setOrigin(0).setDepth(-18);
+    this.add.tileSprite(720, 640, 360, 220, 'stone-path-tile').setOrigin(0).setDepth(-17);
+    this.add.tileSprite(835, 150, 190, 980, 'stone-path-tile').setOrigin(0).setDepth(-17);
+    this.add.tileSprite(1120, 145, 520, 470, 'grass-tile').setOrigin(0).setDepth(-19).setTint(0x2f4d24);
+    this.add.tileSprite(1170, 70, 650, 380, 'grass-tile').setOrigin(0).setDepth(-19).setTint(0x355627);
+    this.add.tileSprite(760, 220, 360, 300, 'dirt-tile').setOrigin(0).setDepth(-18).setTint(0x856042);
+    this.add.tileSprite(1240, 60, 460, 150, 'stone-path-tile').setOrigin(0).setDepth(-18).setTint(0x8fa0a7);
 
-    this.physics.world.setBounds(0, 0, 1920, 1280);
+    this.drawTownBorder();
+    this.drawRoadDetails();
+    this.drawEnvironment();
+    this.drawLandmarks();
 
-    this.walls = this.physics.add.staticGroup();
-    const makeWall = (x, y, w, h) => {
+    this.physics.world.setBounds(0, 0, worldW, worldH);
+    this.obstacles = this.physics.add.staticGroup();
+
+    const addWall = (x, y, w, h) => {
       const wall = this.add.rectangle(x, y, w, h, 0x000000, 0);
       this.physics.add.existing(wall, true);
-      this.walls.add(wall);
+      this.obstacles.add(wall);
     };
 
-    // Town edges and path blockers.
-    makeWall(960, 648, 1920, 8);
-    makeWall(700, 550, 18, 300);
-    makeWall(1250, 420, 20, 860);
-    makeWall(770, 205, 20, 280);
-    makeWall(1160, 145, 20, 250);
-    makeWall(520, 920, 200, 40);
-    makeWall(1540, 420, 120, 28);
-    makeWall(1620, 118, 200, 24);
+    // Map borders and blocking around structures.
+    addWall(960, 630, 1920, 16);
+    addWall(120, 700, 120, 72);
+    addWall(355, 690, 120, 72);
+    addWall(580, 690, 100, 72);
+    addWall(900, 430, 220, 130);
+    addWall(1320, 185, 600, 40);
+    addWall(1100, 115, 260, 40);
+  }
+
+  drawTownBorder() {
+    for (let x = 70; x < 850; x += 32) {
+      this.add.image(x, 630, 'town-border-tile').setOrigin(0).setDepth(-15);
+    }
+    for (let y = 660; y < 980; y += 32) {
+      this.add.image(70, y, 'town-border-tile').setOrigin(0).setDepth(-15).setAngle(90);
+      this.add.image(810, y, 'town-border-tile').setOrigin(0).setDepth(-15).setAngle(90);
+    }
+    for (let x = 70; x < 850; x += 32) {
+      this.add.image(x, 960, 'town-border-tile').setOrigin(0).setDepth(-15);
+    }
+  }
+
+  drawRoadDetails() {
+    for (let y = 640; y < 1220; y += 32) {
+      this.add.image(924, y, 'stone-path-tile').setOrigin(0).setDepth(-14).setScale(1.05, 1.0);
+      this.add.image(964, y, 'stone-path-tile').setOrigin(0).setDepth(-14).setScale(1.05, 1.0);
+    }
+    for (let x = 760; x < 1100; x += 32) {
+      this.add.image(x, 720, 'stone-path-tile').setOrigin(0).setDepth(-14).setScale(1.05, 1.0);
+    }
+    this.add.text(910, 170, 'North Road', {
+      fontFamily: 'Arial',
+      fontSize: '18px',
+      color: '#e8f1ff'
+    }).setDepth(5);
+  }
+
+  drawEnvironment() {
+    const housePositions = [
+      [140, 690, 1.05],
+      [340, 704, 1.05],
+      [560, 700, 1.05],
+      [120, 860, 1],
+      [370, 870, 1],
+      [600, 860, 1]
+    ];
+    housePositions.forEach(([x, y, scale]) => {
+      this.add.image(x, y, 'house').setOrigin(0, 0).setScale(scale).setDepth(3);
+    });
+
+    const treePositions = [
+      [170, 520], [230, 560], [490, 540], [630, 520], [1500, 320], [1630, 380], [1750, 240],
+      [1160, 680], [1410, 760], [1560, 870], [1720, 760]
+    ];
+    treePositions.forEach(([x, y]) => {
+      this.add.image(x, y, 'tree').setOrigin(0.5, 0.75).setDepth(4);
+    });
+
+    const rockPositions = [[260, 760], [420, 780], [720, 820], [1320, 270], [1480, 540], [1540, 700]];
+    rockPositions.forEach(([x, y]) => {
+      this.add.image(x, y, 'rock').setOrigin(0.5, 0.7).setDepth(4);
+    });
+
+    for (let x = 96; x < 760; x += 42) {
+      this.add.image(x, 620, 'fence').setOrigin(0, 0).setDepth(3);
+    }
+    for (let x = 96; x < 760; x += 42) {
+      this.add.image(x, 1000, 'fence').setOrigin(0, 0).setDepth(3);
+    }
+    for (let y = 650; y < 980; y += 42) {
+      this.add.image(84, y, 'fence').setOrigin(0, 0).setDepth(3).setAngle(90);
+      this.add.image(770, y, 'fence').setOrigin(0, 0).setDepth(3).setAngle(90);
+    }
+  }
+
+  drawLandmarks() {
+    this.add.image(940, 312, 'shrine').setOrigin(0.5).setDepth(4).setScale(1.4);
+    this.add.text(868, 350, 'Shrine Ruins', {
+      fontFamily: 'Arial',
+      fontSize: '18px',
+      color: '#ffd4a1'
+    }).setDepth(5);
+
+    this.add.text(118, 672, 'Cinder Hollow', {
+      fontFamily: 'Arial',
+      fontSize: '22px',
+      color: '#ffe8b4'
+    }).setDepth(5);
   }
 
   buildPlayer() {
-    this.player = this.physics.add.sprite(GAME_STATE.player.x, GAME_STATE.player.y, 'player-kael');
-    this.player.setSize(18, 18).setOffset(7, 10);
+    this.player = this.physics.add.sprite(GAME_STATE.player.x, GAME_STATE.player.y, 'player-kael-down');
+    this.player.setSize(14, 18).setOffset(9, 10);
     this.player.setCollideWorldBounds(true);
-    this.player.body.setMaxVelocity(180, 180);
-    this.physics.add.collider(this.player, this.walls);
-
-    this.anims.create({
-      key: 'idle',
-      frames: [{ key: 'player-kael' }],
-      frameRate: 1,
-      repeat: -1
-    });
-    this.player.play('idle');
+    this.player.setMaxVelocity(128, 128);
+    this.player.setDrag(0, 0);
+    this.player.body.setBounce(0);
+    this.physics.add.collider(this.player, this.obstacles);
   }
 
   buildInteractiveElements() {
-    this.rowan = this.physics.add.staticSprite(420, 790, 'elder-rowan');
-    this.rowan.setScale(1.1);
-    this.add.text(360, 830, 'Elder Rowan', { fontFamily: 'Arial', fontSize: '14px', color: '#f9d38b' });
+    this.rowan = this.physics.add.staticSprite(420, 790, 'elder-rowan-front').setScale(1.05);
+    this.chest = this.physics.add.staticSprite(980, 300, 'chest').setScale(1.1);
+    this.ashWolf = this.state.flags.ashWolfDefeated ? null : this.physics.add.staticSprite(1460, 260, 'ash-wolf').setScale(1.2);
 
-    this.shrineChest = this.physics.add.staticSprite(980, 300, 'chest');
-    this.shrineChest.setScale(1.05);
-    this.add.text(915, 335, 'Shrine Chest', { fontFamily: 'Arial', fontSize: '12px', color: '#ffd08c' });
-
-    this.rowanZone = this.add.zone(420, 790, 90, 90);
-    this.chestZone = this.add.zone(980, 300, 90, 90);
-    this.shrineZone = this.add.zone(980, 300, 160, 160);
-    this.northGate = this.add.zone(1380, 180, 280, 240);
-
-    this.physics.add.existing(this.rowanZone, true);
-    this.physics.add.existing(this.chestZone, true);
-    this.physics.add.existing(this.shrineZone, true);
-    this.physics.add.existing(this.northGate, true);
-
-    if (!this.state.flags.ashWolfDefeated) {
-      this.ashWolf = this.physics.add.staticSprite(1460, 260, 'ash-wolf');
-      this.ashWolf.setScale(1.2);
-      this.add.text(1418, 300, 'Ash Wolf', { fontFamily: 'Arial', fontSize: '12px', color: '#ffaaaa' });
-
-      this.wolfZone = this.add.zone(1460, 260, 100, 100);
-      this.physics.add.existing(this.wolfZone, true);
-      this.physics.add.overlap(this.player, this.wolfZone, () => {
-        this.canInteract = true;
-        this.activeObject = 'wolf';
-      });
-    } else {
-      this.add.text(1390, 300, 'Ash Wolf defeated', { fontFamily: 'Arial', fontSize: '12px', color: '#ffd08c' });
+    this.add.text(360, 832, 'Elder Rowan', {
+      fontFamily: 'Arial',
+      fontSize: '14px',
+      color: '#ffe1a3'
+    }).setDepth(5);
+    this.add.text(920, 336, 'Shrine Chest', {
+      fontFamily: 'Arial',
+      fontSize: '12px',
+      color: '#ffd28d'
+    }).setDepth(5);
+    if (this.ashWolf) {
+      this.add.text(1418, 301, 'Ash Wolf', {
+        fontFamily: 'Arial',
+        fontSize: '12px',
+        color: '#ffb3a8'
+      }).setDepth(5);
     }
 
+    this.rowanZone = this.add.zone(420, 790, 94, 94);
+    this.chestZone = this.add.zone(980, 300, 88, 88);
+    this.wolfZone = this.add.zone(1460, 260, 100, 100);
+    this.physics.add.existing(this.rowanZone, true);
+    this.physics.add.existing(this.chestZone, true);
+    this.physics.add.existing(this.wolfZone, true);
+
     this.physics.add.overlap(this.player, this.rowanZone, () => {
-      this.canTalk = true;
-      this.activeNPC = 'rowan';
+      this.activeInteractable = 'rowan';
     });
     this.physics.add.overlap(this.player, this.chestZone, () => {
-      this.canInteract = true;
-      this.activeObject = 'chest';
+      this.activeInteractable = 'chest';
     });
-    this.physics.add.overlap(this.player, this.shrineZone, () => {
-      this.canInteract = true;
-      if (this.state.quests.ashesInTheShrine !== QUESTS.ashesInTheShrine.stages.complete) {
-        this.activeObject = 'shrine';
-      }
-    });
+    if (this.ashWolf) {
+      this.physics.add.overlap(this.player, this.wolfZone, () => {
+        this.activeInteractable = 'wolf';
+      });
+    }
   }
 
   buildControls() {
     this.ui.createMovementPad({
-      up: () => this.moveIntent('up'),
-      down: () => this.moveIntent('down'),
-      left: () => this.moveIntent('left'),
-      right: () => this.moveIntent('right'),
+      up: () => this.setTouchDirection('up', true),
+      upEnd: () => this.setTouchDirection('up', false),
+      left: () => this.setTouchDirection('left', true),
+      leftEnd: () => this.setTouchDirection('left', false),
+      down: () => this.setTouchDirection('down', true),
+      downEnd: () => this.setTouchDirection('down', false),
+      right: () => this.setTouchDirection('right', true),
+      rightEnd: () => this.setTouchDirection('right', false),
       action: () => this.handleAction()
     });
   }
@@ -151,9 +235,22 @@ export default class OverworldScene extends Phaser.Scene {
     this.input.keyboard.on('keydown-I', () => this.toggleInventory());
   }
 
-  moveIntent(dir) {
-    if (this.inDialogue) return;
-    this.lastTouchDir = dir;
+  setTouchDirection(dir, enabled) {
+    if (this.inDialogue) {
+      return;
+    }
+    this.touchDirections[dir] = enabled;
+  }
+
+  clearTouchDirections() {
+    this.touchDirections.up = false;
+    this.touchDirections.down = false;
+    this.touchDirections.left = false;
+    this.touchDirections.right = false;
+  }
+
+  isDown(key) {
+    return Boolean(key?.isDown);
   }
 
   handleAction() {
@@ -162,19 +259,18 @@ export default class OverworldScene extends Phaser.Scene {
       return;
     }
 
-    if (this.activeNPC === 'rowan') {
+    if (this.activeInteractable === 'rowan') {
       this.talkToRowan();
       return;
     }
 
-    if (this.activeObject === 'chest') {
+    if (this.activeInteractable === 'chest') {
       this.openChest();
       return;
     }
 
-    if (this.activeObject === 'wolf') {
+    if (this.activeInteractable === 'wolf') {
       this.enterBattle();
-      return;
     }
   }
 
@@ -182,21 +278,17 @@ export default class OverworldScene extends Phaser.Scene {
     const questStage = this.state.quests.ashesInTheShrine;
     if (questStage === QUESTS.ashesInTheShrine.stages.locked) {
       this.quests.acceptAshesQuest();
-      this.dialogue.open({
-        speaker: 'Elder Rowan',
-        lines: DIALOGUE.elderRowanIntro
-      });
+      this.state.flags.elderRowanMet = true;
+      this.dialogue.open({ speaker: 'Elder Rowan', lines: DIALOGUE.elderRowanIntro });
     } else if (questStage === QUESTS.ashesInTheShrine.stages.active) {
       this.dialogue.open({ speaker: 'Elder Rowan', lines: DIALOGUE.elderRowanAfterAccept });
     } else if (questStage === QUESTS.ashesInTheShrine.stages.shardFound) {
       this.quests.completeAshesQuest();
-      this.dialogue.open({
-        speaker: 'Elder Rowan',
-        lines: DIALOGUE.elderRowanAfterShard
-      });
+      this.dialogue.open({ speaker: 'Elder Rowan', lines: DIALOGUE.elderRowanAfterShard });
     } else {
       this.dialogue.open({ speaker: 'Elder Rowan', lines: ['The shrine rests. Cinder Hollow owes you, Kael.'] });
     }
+
     this.inDialogue = true;
     this.dialogue.onComplete = () => {
       this.inDialogue = false;
@@ -208,14 +300,18 @@ export default class OverworldScene extends Phaser.Scene {
     if (this.state.flags.relicShardFound) {
       this.dialogue.open({ speaker: 'Chest', lines: ['The chest is empty now.'] });
       this.inDialogue = true;
-      this.dialogue.onComplete = () => { this.inDialogue = false; };
+      this.dialogue.onComplete = () => {
+        this.inDialogue = false;
+      };
       return;
     }
 
     if (!this.quests.isActive() && !this.quests.isShardFound()) {
       this.dialogue.open({ speaker: 'Chest', lines: ['The shrine chest is sealed in soot.'] });
       this.inDialogue = true;
-      this.dialogue.onComplete = () => { this.inDialogue = false; };
+      this.dialogue.onComplete = () => {
+        this.inDialogue = false;
+      };
       return;
     }
 
@@ -228,7 +324,8 @@ export default class OverworldScene extends Phaser.Scene {
     });
     this.state.flags.relicShardFound = true;
     this.quests.markShardFound();
-    this.shrineChest.disableBody(true, true);
+    this.chest.setVisible(false);
+    this.chest.body.enable = false;
     this.dialogue.open({ speaker: 'Chest', lines: DIALOGUE.chestFound });
     this.inDialogue = true;
     this.dialogue.onComplete = () => {
@@ -246,18 +343,18 @@ export default class OverworldScene extends Phaser.Scene {
     this.showInventory = !this.showInventory;
     if (this.showInventory) {
       const lines = this.inventory.asLines().join('\n');
-      this.inventoryOverlay = this.inventoryOverlay ?? this.add.rectangle(630, 115, 300, 170, 0x0b1324, 0.92)
-        .setStrokeStyle(2, 0xf9d38b, 0.8)
+      this.inventoryOverlay = this.inventoryOverlay ?? this.add.rectangle(610, 110, 300, 172, 0x0b1324, 0.92)
+        .setStrokeStyle(2, 0xf9d38b, 0.75)
         .setScrollFactor(0)
         .setDepth(920);
-      this.inventoryText = this.inventoryText ?? this.add.text(480, 45, '', {
+      this.inventoryText = this.inventoryText ?? this.add.text(462, 40, '', {
         fontFamily: 'Arial',
-        fontSize: '14px',
+        fontSize: '15px',
         color: '#ffffff',
-        wordWrap: { width: 260 }
+        wordWrap: { width: 270 }
       }).setScrollFactor(0).setDepth(930);
-      this.inventoryText.setText(`Inventory\n${lines}`);
       this.inventoryOverlay.setVisible(true);
+      this.inventoryText.setText(`Inventory\n${lines}`);
       this.inventoryText.setVisible(true);
     } else if (this.inventoryOverlay) {
       this.inventoryOverlay.setVisible(false);
@@ -268,51 +365,88 @@ export default class OverworldScene extends Phaser.Scene {
   refreshUI() {
     this.ui.updateVitals(this.state.player);
     const questText = this.quests.isComplete()
-      ? 'Quest: Ashes in the Shrine — complete'
+      ? 'Ashes in the Shrine — complete'
       : this.quests.isShardFound()
-        ? 'Quest: Return the Relic Shard to Elder Rowan'
+        ? 'Return the Relic Shard to Elder Rowan'
         : this.quests.isActive()
-          ? 'Quest: Find the Relic Shard in the shrine'
-          : 'Quest: Speak to Elder Rowan';
+          ? 'Find the Relic Shard in the shrine'
+          : 'Speak to Elder Rowan';
     this.ui.setQuestText(questText);
   }
 
   update() {
-    if (this.inDialogue) {
-      this.player.setVelocity(0);
-      return;
-    }
+    const player = this.player;
+    const left = this.isDown(this.cursors.left) || this.isDown(this.keys.A) || this.touchDirections.left;
+    const right = this.isDown(this.cursors.right) || this.isDown(this.keys.D) || this.touchDirections.right;
+    const up = this.isDown(this.cursors.up) || this.isDown(this.keys.W) || this.touchDirections.up;
+    const down = this.isDown(this.cursors.down) || this.isDown(this.keys.S) || this.touchDirections.down;
 
-    this.canTalk = false;
-    this.canInteract = false;
-    this.activeNPC = null;
-    this.activeObject = null;
-
-    const speed = 140;
     let vx = 0;
     let vy = 0;
-
-    const up = this.cursors.up.isDown || this.keys.W.isDown || this.lastTouchDir === 'up';
-    const down = this.cursors.down.isDown || this.keys.S.isDown || this.lastTouchDir === 'down';
-    const left = this.cursors.left.isDown || this.keys.A.isDown || this.lastTouchDir === 'left';
-    const right = this.cursors.right.isDown || this.keys.D.isDown || this.lastTouchDir === 'right';
-
-    if (up) vy -= 1;
-    if (down) vy += 1;
     if (left) vx -= 1;
     if (right) vx += 1;
+    if (up) vy -= 1;
+    if (down) vy += 1;
 
     const moving = vx !== 0 || vy !== 0;
     if (moving) {
       const len = Math.hypot(vx, vy) || 1;
-      vx = (vx / len) * speed;
-      vy = (vy / len) * speed;
-      this.player.setVelocity(vx, vy);
+      vx = (vx / len) * 128;
+      vy = (vy / len) * 128;
+      player.setVelocity(vx, vy);
+
+      if (Math.abs(vx) > Math.abs(vy)) {
+        this.lastFacing = vx < 0 ? 'left' : 'right';
+      } else {
+        this.lastFacing = vy < 0 ? 'up' : 'down';
+      }
     } else {
-      this.player.setVelocity(0);
+      player.setVelocity(0, 0);
     }
 
-    this.lastTouchDir = null;
+    const facingKey = this.lastFacing === 'up'
+      ? 'player-kael-up'
+      : this.lastFacing === 'down'
+        ? 'player-kael-down'
+        : 'player-kael-side';
+    player.setTexture(facingKey);
+    player.setFlipX(this.lastFacing === 'left');
+
+    this.rowan.setTexture(this.inDialogue && this.activeInteractable === 'rowan' ? 'elder-rowan-front' : 'elder-rowan-side');
+    this.rowan.setFlipX(player.x < this.rowan.x);
+
+    this.refreshInteractableState();
     this.refreshUI();
+  }
+
+  refreshInteractableState() {
+    if (this.inDialogue) {
+      this.activeInteractable = null;
+      this.ui.setInteractionPrompt('');
+      return;
+    }
+
+    const promptRange = 72;
+    const rowanDist = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.rowan.x, this.rowan.y);
+    const chestDist = (!this.state.flags.relicShardFound && this.chest?.active !== false)
+      ? Phaser.Math.Distance.Between(this.player.x, this.player.y, this.chest.x, this.chest.y)
+      : Number.POSITIVE_INFINITY;
+    const wolfDist = this.ashWolf ? Phaser.Math.Distance.Between(this.player.x, this.player.y, this.ashWolf.x, this.ashWolf.y) : Number.POSITIVE_INFINITY;
+
+    let prompt = '';
+    this.activeInteractable = null;
+
+    if (rowanDist < promptRange) {
+      this.activeInteractable = 'rowan';
+      prompt = 'Press Action';
+    } else if (chestDist < promptRange) {
+      this.activeInteractable = 'chest';
+      prompt = 'Press Action';
+    } else if (wolfDist < promptRange + 8) {
+      this.activeInteractable = 'wolf';
+      prompt = 'Press Action';
+    }
+
+    this.ui.setInteractionPrompt(prompt);
   }
 }

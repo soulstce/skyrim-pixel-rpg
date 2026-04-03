@@ -13,20 +13,20 @@ export default class DialogueSystem {
     const { width, height } = this.scene.scale;
 
     this.container = this.scene.add.container(0, 0).setDepth(1000).setScrollFactor(0);
-    this.panel = this.scene.add.rectangle(width / 2, height - 90, width - 40, 140, 0x0b1324, 0.94)
+    this.panel = this.scene.add.rectangle(width / 2, height - 92, width - 24, 138, 0x0b1324, 0.95)
       .setStrokeStyle(2, 0xf9d38b, 0.9);
-    this.title = this.scene.add.text(32, height - 170, '', {
+    this.title = this.scene.add.text(24, height - 168, '', {
       fontFamily: 'Arial',
       fontSize: '18px',
       color: '#f9d38b'
     });
-    this.text = this.scene.add.text(32, height - 140, '', {
+    this.text = this.scene.add.text(24, height - 138, '', {
       fontFamily: 'Arial',
-      fontSize: '16px',
+      fontSize: '17px',
       color: '#f2f5ff',
-      wordWrap: { width: width - 64 }
+      wordWrap: { width: width - 48 }
     });
-    this.hint = this.scene.add.text(width - 250, height - 40, 'Tap / Space to continue', {
+    this.hint = this.scene.add.text(width - 238, height - 42, 'Tap / Space', {
       fontFamily: 'Arial',
       fontSize: '14px',
       color: '#8dc8ff'
@@ -48,7 +48,7 @@ export default class DialogueSystem {
 
   render() {
     const line = this.lines[this.index] ?? '';
-    this.title.setText(this.speaker ? `${this.speaker}` : '');
+    this.title.setText(this.speaker);
     this.text.setText(line);
   }
 
@@ -70,8 +70,8 @@ export default class DialogueSystem {
   close() {
     this.visible = false;
     this.container.setVisible(false);
-    this.text.setText('');
     this.title.setText('');
+    this.text.setText('');
     if (typeof this.onComplete === 'function') {
       const cb = this.onComplete;
       this.onComplete = null;
