@@ -20,9 +20,13 @@ export default class OverworldScene extends Phaser.Scene {
     this.lastFacing = 'down';
     this.activeInteractable = null;
 
-    this.input.addPointer(3);
-    this.input.on('pointerup', () => this.clearTouchDirections());
+    this.handleWindowBlur = () => this.clearTouchDirections();
+    this.input.addPointer(7);
+    this.input.topOnly = false;
     this.input.on('gameout', () => this.clearTouchDirections());
+    this.input.on('pointercancel', () => this.clearTouchDirections());
+    window.addEventListener('blur', this.handleWindowBlur);
+    window.addEventListener('pagehide', this.handleWindowBlur);
 
     this.buildWorld();
     this.buildPlayer();
@@ -36,6 +40,11 @@ export default class OverworldScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
     this.cameras.main.setDeadzone(120, 90);
     this.cameras.main.centerOn(this.player.x, this.player.y);
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      window.removeEventListener('blur', this.handleWindowBlur);
+      window.removeEventListener('pagehide', this.handleWindowBlur);
+    });
   }
 
   buildWorld() {

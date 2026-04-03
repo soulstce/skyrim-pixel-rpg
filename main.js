@@ -11,6 +11,9 @@ const config = {
   backgroundColor: '#0b1020',
   pixelArt: true,
   roundPixels: true,
+  input: {
+    activePointers: 10
+  },
   physics: {
     default: 'arcade',
     arcade: {
@@ -18,8 +21,13 @@ const config = {
       debug: false
     }
   },
-  input: {
-    activePointers: 4
+  callbacks: {
+    postBoot: (game) => {
+      if (game.canvas) {
+        game.canvas.style.touchAction = 'none';
+        game.canvas.style.webkitTouchCallout = 'none';
+      }
+    }
   },
   scene: [BootScene, TitleScene, OverworldScene, BattleScene],
   scale: {
