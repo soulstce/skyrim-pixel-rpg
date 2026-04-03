@@ -21,7 +21,7 @@ export default class OverworldScene extends Phaser.Scene {
     this.activeInteractable = null;
 
     this.handleWindowBlur = () => this.clearTouchDirections();
-    this.input.addPointer(3);
+    this.input.setPollAlways(true);
     this.input.topOnly = false;
     this.game.canvas.style.touchAction = 'none';
     this.game.canvas.style.webkitTouchCallout = 'none';
@@ -76,7 +76,6 @@ export default class OverworldScene extends Phaser.Scene {
       this.obstacles.add(wall);
     };
 
-    // Map borders and blocking around structures.
     addWall(960, 630, 1920, 16);
     addWall(120, 700, 120, 72);
     addWall(355, 690, 120, 72);

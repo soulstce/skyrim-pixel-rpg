@@ -102,9 +102,67 @@ export default class UISystem {
   }
 
   clearButtons() {
+    this.directionPointers.forEach((dir) => {
+      this.scene.setTouchDirection(dir, false);
+    });
+    this.directionPointers.clear();
     this.buttons.forEach((button) => button.destroy());
     this.buttons = [];
-    this.directionPointers.clear();
+  }
+
+  isPointerWithin(hit, pointer) {
+    const bounds = hit.getBounds();
+    return bounds.contains(pointer.x, pointer.y);
+  }
+
+  createTouchButton({ x, y, visualWidth, visualHeight, label, tint, depth = 100, onDown, onMove, onUp }) {
+    const container = this.scene.add.container(x, y).setScrollFactor(0).setDepth(depth);
+    const bg = this.scene.add.ellipse(0, 0, visualWidth, visualHeight, tint, 0.94)
+      .setStrokeStyle(2, 0xe8ebf1, 0.7);
+
+    const hitWidth = Math.round(visualWidth * 1.5);
+    const hitHeight = Math.round(visualHeight * 1.5);
+    const hit = this.scene.add.rectangle(-hitWidth / 2, -hitHeight / 2, hitWidth, hitHeight, 0xffffff, 0.001)
+      .setOrigin(0)
+      .setInteractive(new Phaser.Geom.Rectangle(0, 0, hitWidth, hitHeight), Phaser.Geom.Rectangle.Contains);
+
+    const text = this.scene.add.text(0, 0, label, {
+      fontFamily: 'Arial',
+      fontSize: '16px',
+      color: '#ffffff'
+    }).setOrigin(0.5);
+
+    const press = (pointer) => {
+      container.setScale(0.94);
+      if (pointer?.event?.cancelable) {
+        pointer.event.preventDefault?.();
+      }
+      onDown?.(pointer, hit);
+    };
+
+    const move = (pointer) => {
+      if (this.isPointerWithin(hit, pointer)) {
+        container.setScale(0.94);
+        onMove?.(pointer, hit);
+      } else {
+        release(pointer);
+      }
+    };
+
+    const release = (pointer) => {
+      container.setScale(1);
+      onUp?.(pointer, hit);
+    };
+
+    hit.on('pointerdown', press);
+    hit.on('pointermove', move);
+    hit.on('pointerup', release);
+    hit.on('pointerout', release);
+    hit.on('pointercancel', release);
+
+    container.add([bg, hit, text]);
+    this.buttons.push(container);
+    return { container, hit };
   }
 
   startDirection(dir, pointer) {
@@ -121,69 +179,29 @@ export default class UISystem {
     }
     if (pointer) {
       this.directionPointers.delete(pointer.id);
+    } else {
+      for (const [pointerId, currentDir] of this.directionPointers.entries()) {
+        if (currentDir === dir) {
+          this.directionPointers.delete(pointerId);
+        }
+      }
     }
     this.scene.setTouchDirection(dir, false);
   }
 
-  createPressedButton(x, y, size, label, tint, onDown, onUp) {
-    const container = this.scene.add.container(x, y).setScrollFactor(0).setDepth(950);
-    const bg = this.scene.add.ellipse(0, 0, size, size, tint, 0.94)
-      .setStrokeStyle(2, 0xe8ebf1, 0.7);
-    const hit = this.scene.add.rectangle(0, 0, size + 18, size + 18, 0xffffff, 0.001)
-      .setInteractive({ useHandCursor: true });
-    const inner = this.scene.add.ellipse(0, 0, size - 10, size - 10, 0xffffff, 0.08);
-    const text = this.scene.add.text(0, 0, label, {
-      fontFamily: 'Arial',
-      fontSize: '16px',
-      color: '#ffffff'
-    }).setOrigin(0.5);
-
-    hit.on('pointerdown', (pointer) => {
-      container.setScale(0.94);
-      onDown?.(pointer);
-    });
-    const release = (pointer) => {
-      container.setScale(1);
-      onUp?.(pointer);
-    };
-    hit.on('pointerup', release);
-    hit.on('pointerout', release);
-    hit.on('pointerupoutside', release);
-    hit.on('pointercancel', release);
-
-    container.add([bg, hit, inner, text]);
-    this.buttons.push(container);
-    return container;
-  }
-
   createActionButton(x, y, label, tint, onClick) {
-    const container = this.scene.add.container(x, y).setScrollFactor(0).setDepth(950);
-    const bg = this.scene.add.ellipse(0, 0, 92, 54, tint, 0.95)
-      .setStrokeStyle(2, 0xe8ebf1, 0.7);
-    const hit = this.scene.add.rectangle(0, 0, 108, 70, 0xffffff, 0.001)
-      .setInteractive({ useHandCursor: true });
-    const text = this.scene.add.text(0, 0, label, {
-      fontFamily: 'Arial',
-      fontSize: '15px',
-      color: '#ffffff'
-    }).setOrigin(0.5);
-
-    hit.on('pointerdown', (pointer) => {
-      container.setScale(0.94);
-      if (pointer?.event?.cancelable) {
-        pointer.event.preventDefault?.();
-      }
-      onClick?.();
+    return this.createTouchButton({
+      x,
+      y,
+      visualWidth: 92,
+      visualHeight: 54,
+      label,
+      tint,
+      depth: 100,
+      onDown: () => onClick?.(),
+      onMove: () => {},
+      onUp: () => {}
     });
-    const release = () => container.setScale(1);
-    hit.on('pointerup', release);
-    hit.on('pointerout', release);
-    hit.on('pointerupoutside', release);
-    hit.on('pointercancel', release);
-
-    container.add([bg, hit, text]);
-    this.buttons.push(container);
-    return container;
   }
 
   createMovementPad(callbacks = {}) {
@@ -192,11 +210,70 @@ export default class UISystem {
     const size = 44;
     this.clearButtons();
 
-    this.createPressedButton(baseX, baseY - size, size, '↑', 0x4a5b77, callbacks.up, callbacks.upEnd);
-    this.createPressedButton(baseX - size, baseY, size, '←', 0x4a5b77, callbacks.left, callbacks.leftEnd);
-    this.createPressedButton(baseX, baseY, size, '↓', 0x4a5b77, callbacks.down, callbacks.downEnd);
-    this.createPressedButton(baseX + size, baseY, size, '→', 0x4a5b77, callbacks.right, callbacks.rightEnd);
-    this.createActionButton(this.scene.scale.width - 104, baseY - 2, 'Action', 0x7b5132, callbacks.action);
+    this.createTouchButton({
+      x: baseX,
+      y: baseY - size,
+      visualWidth: size,
+      visualHeight: size,
+      label: '↑',
+      tint: 0x4a5b77,
+      depth: 100,
+      onDown: (pointer) => callbacks.up?.(pointer),
+      onMove: (pointer) => callbacks.up?.(pointer),
+      onUp: (pointer) => callbacks.upEnd?.(pointer)
+    });
+
+    this.createTouchButton({
+      x: baseX - size,
+      y: baseY,
+      visualWidth: size,
+      visualHeight: size,
+      label: '←',
+      tint: 0x4a5b77,
+      depth: 100,
+      onDown: (pointer) => callbacks.left?.(pointer),
+      onMove: (pointer) => callbacks.left?.(pointer),
+      onUp: (pointer) => callbacks.leftEnd?.(pointer)
+    });
+
+    this.createTouchButton({
+      x: baseX,
+      y: baseY,
+      visualWidth: size,
+      visualHeight: size,
+      label: '↓',
+      tint: 0x4a5b77,
+      depth: 100,
+      onDown: (pointer) => callbacks.down?.(pointer),
+      onMove: (pointer) => callbacks.down?.(pointer),
+      onUp: (pointer) => callbacks.downEnd?.(pointer)
+    });
+
+    this.createTouchButton({
+      x: baseX + size,
+      y: baseY,
+      visualWidth: size,
+      visualHeight: size,
+      label: '→',
+      tint: 0x4a5b77,
+      depth: 100,
+      onDown: (pointer) => callbacks.right?.(pointer),
+      onMove: (pointer) => callbacks.right?.(pointer),
+      onUp: (pointer) => callbacks.rightEnd?.(pointer)
+    });
+
+    this.createTouchButton({
+      x: this.scene.scale.width - 104,
+      y: baseY - 2,
+      visualWidth: 92,
+      visualHeight: 54,
+      label: 'Action',
+      tint: 0x7b5132,
+      depth: 100,
+      onDown: () => callbacks.action?.(),
+      onMove: () => {},
+      onUp: () => {}
+    });
 
     this.scene.input.setTopOnly(false);
   }

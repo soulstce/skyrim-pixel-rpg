@@ -23,9 +23,13 @@ const config = {
   },
   callbacks: {
     postBoot: (game) => {
+      if (game.input?.addPointer) {
+        game.input.addPointer(3);
+      }
       if (game.canvas) {
         game.canvas.style.touchAction = 'none';
         game.canvas.style.webkitTouchCallout = 'none';
+        game.canvas.style.webkitUserDrag = 'none';
       }
     }
   },
