@@ -19,6 +19,8 @@ export default class OverworldScene extends Phaser.Scene {
     this.touchDirections = { up: false, down: false, left: false, right: false };
     this.lastFacing = 'down';
     this.activeInteractable = null;
+    this.lastTouchButton = 'None';
+    this.touchIsDown = false;
 
     this.handleWindowBlur = () => this.clearTouchDirections();
     this.input.setPollAlways(true);
@@ -35,6 +37,7 @@ export default class OverworldScene extends Phaser.Scene {
     this.buildInteractiveElements();
     this.buildControls();
     this.bindInput();
+    this.ui.createDebugText();
     this.refreshUI();
 
     this.cameras.main.setBounds(0, 0, 1920, 1280);
@@ -243,6 +246,8 @@ export default class OverworldScene extends Phaser.Scene {
       }
     });
     this.input.keyboard.on('keydown-I', () => this.toggleInventory());
+    this.input.on('pointerdown', (pointer) => this.handleGlobalPointer('down', pointer));
+    this.input.on('pointermove', (pointer) => this.handleGlobalPointer('move', pointer));
   }
 
   setTouchDirection(dir, enabled) {
@@ -250,6 +255,11 @@ export default class OverworldScene extends Phaser.Scene {
       return;
     }
     this.touchDirections[dir] = enabled;
+    this.touchIsDown = enabled || this.touchDirections.up || this.touchDirections.down || this.touchDirections.left || this.touchDirections.right;
+  }
+
+  setLastTouchButton(label) {
+    this.lastTouchButton = label;
   }
 
   clearTouchDirections() {
@@ -257,6 +267,31 @@ export default class OverworldScene extends Phaser.Scene {
     this.touchDirections.down = false;
     this.touchDirections.left = false;
     this.touchDirections.right = false;
+    this.touchIsDown = false;
+  }
+
+  handleGlobalPointer(type, pointer) {
+    const button = this.ui.findHitButton(pointer);
+    if (!button) {
+      this.ui.setDebugText(`Pointers: ${this.input.pointers.length} | Last: ${this.lastTouchButton} | Touch Active: ${this.touchIsDown ? 'yes' : 'no'}`);
+      return;
+    }
+
+    if (type === 'down') {
+      this.lastTouchButton = button.name;
+      this.touchIsDown = true;
+      if (button.name === 'Action') {
+        this.ui.flashButton('Action');
+        this.handleAction();
+      }
+    }
+
+    if (type === 'move') {
+      this.touchIsDown = true;
+      this.lastTouchButton = button.name;
+    }
+
+    this.ui.setDebugText(`Pointers: ${this.input.pointers.length} | Last: ${this.lastTouchButton} | Touch Active: ${this.touchIsDown ? 'yes' : 'no'}`);
   }
 
   isDown(key) {
@@ -382,6 +417,7 @@ export default class OverworldScene extends Phaser.Scene {
           ? 'Find the Relic Shard in the shrine'
           : 'Speak to Elder Rowan';
     this.ui.setQuestText(questText);
+    this.ui.setDebugText(`Pointers: ${this.input.pointers.length} | Last: ${this.lastTouchButton} | Touch Active: ${this.touchIsDown ? 'yes' : 'no'}`);
   }
 
   update() {

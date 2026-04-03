@@ -3,6 +3,7 @@ export default class UISystem {
     this.scene = scene;
     this.buttons = [];
     this.directionPointers = new Map();
+    this.buttonLookup = new Map();
     this.createBaseHUD();
   }
 
@@ -101,13 +102,29 @@ export default class UISystem {
     }
   }
 
+  createDebugText() {
+    const { width } = this.scene.scale;
+    this.debugText = this.scene.add.text(width / 2, 8, '', {
+      fontFamily: 'Arial',
+      fontSize: '14px',
+      color: '#ffffff',
+      backgroundColor: '#000000aa',
+      padding: { left: 8, right: 8, top: 4, bottom: 4 }
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(1100);
+    return this.debugText;
+  }
+
+  setDebugText(text) {
+    if (this.debugText) {
+      this.debugText.setText(text);
+    }
+  }
+
   clearButtons() {
-    this.directionPointers.forEach((dir) => {
-      this.scene.setTouchDirection(dir, false);
-    });
     this.directionPointers.clear();
-    this.buttons.forEach((button) => button.destroy());
+    this.buttons.forEach((button) => button.container.destroy());
     this.buttons = [];
+    this.buttonLookup.clear();
   }
 
   isPointerWithin(hit, pointer) {
@@ -115,7 +132,42 @@ export default class UISystem {
     return bounds.contains(pointer.x, pointer.y);
   }
 
-  createTouchButton({ x, y, visualWidth, visualHeight, label, tint, depth = 100, onDown, onMove, onUp }) {
+  registerButton(name, button) {
+    this.buttons.push({ name, ...button });
+    this.buttonLookup.set(name, button);
+    return button;
+  }
+
+  getButton(name) {
+    return this.buttonLookup.get(name);
+  }
+
+  findHitButton(pointer) {
+    const entries = this.buttons.slice().reverse();
+    for (const entry of entries) {
+      if (entry.hit && this.isPointerWithin(entry.hit, pointer)) {
+        return entry;
+      }
+    }
+    return null;
+  }
+
+  flashButton(name) {
+    const button = this.getButton(name);
+    if (!button?.container) {
+      return;
+    }
+    button.container.setScale(0.9);
+    this.scene.tweens.add({
+      targets: button.container,
+      scaleX: 1,
+      scaleY: 1,
+      duration: 120,
+      ease: 'Quad.easeOut'
+    });
+  }
+
+  createTouchButton({ x, y, visualWidth, visualHeight, label, tint, depth = 100, name = label, onDown, onMove, onUp }) {
     const container = this.scene.add.container(x, y).setScrollFactor(0).setDepth(depth);
     const bg = this.scene.add.ellipse(0, 0, visualWidth, visualHeight, tint, 0.94)
       .setStrokeStyle(2, 0xe8ebf1, 0.7);
@@ -124,6 +176,7 @@ export default class UISystem {
     const hitHeight = Math.round(visualHeight * 1.5);
     const hit = this.scene.add.rectangle(-hitWidth / 2, -hitHeight / 2, hitWidth, hitHeight, 0xffffff, 0.001)
       .setOrigin(0)
+      .setDepth(depth)
       .setInteractive(new Phaser.Geom.Rectangle(0, 0, hitWidth, hitHeight), Phaser.Geom.Rectangle.Contains);
 
     const text = this.scene.add.text(0, 0, label, {
@@ -161,8 +214,7 @@ export default class UISystem {
     hit.on('pointercancel', release);
 
     container.add([bg, hit, text]);
-    this.buttons.push(container);
-    return { container, hit };
+    return this.registerButton(name, { container, hit, text, bg });
   }
 
   startDirection(dir, pointer) {
@@ -171,6 +223,7 @@ export default class UISystem {
     }
     this.directionPointers.set(pointer.id, dir);
     this.scene.setTouchDirection(dir, true);
+    this.scene.setLastTouchButton(dir.charAt(0).toUpperCase() + dir.slice(1));
   }
 
   stopDirection(dir, pointer) {
@@ -198,7 +251,11 @@ export default class UISystem {
       label,
       tint,
       depth: 100,
-      onDown: () => onClick?.(),
+      name: label,
+      onDown: () => {
+        this.flashButton('Action');
+        onClick?.();
+      },
       onMove: () => {},
       onUp: () => {}
     });
@@ -218,6 +275,7 @@ export default class UISystem {
       label: '↑',
       tint: 0x4a5b77,
       depth: 100,
+      name: 'Up',
       onDown: (pointer) => callbacks.up?.(pointer),
       onMove: (pointer) => callbacks.up?.(pointer),
       onUp: (pointer) => callbacks.upEnd?.(pointer)
@@ -231,6 +289,7 @@ export default class UISystem {
       label: '←',
       tint: 0x4a5b77,
       depth: 100,
+      name: 'Left',
       onDown: (pointer) => callbacks.left?.(pointer),
       onMove: (pointer) => callbacks.left?.(pointer),
       onUp: (pointer) => callbacks.leftEnd?.(pointer)
@@ -244,6 +303,7 @@ export default class UISystem {
       label: '↓',
       tint: 0x4a5b77,
       depth: 100,
+      name: 'Down',
       onDown: (pointer) => callbacks.down?.(pointer),
       onMove: (pointer) => callbacks.down?.(pointer),
       onUp: (pointer) => callbacks.downEnd?.(pointer)
@@ -257,6 +317,7 @@ export default class UISystem {
       label: '→',
       tint: 0x4a5b77,
       depth: 100,
+      name: 'Right',
       onDown: (pointer) => callbacks.right?.(pointer),
       onMove: (pointer) => callbacks.right?.(pointer),
       onUp: (pointer) => callbacks.rightEnd?.(pointer)
@@ -270,7 +331,8 @@ export default class UISystem {
       label: 'Action',
       tint: 0x7b5132,
       depth: 100,
-      onDown: () => callbacks.action?.(),
+      name: 'Action',
+      onDown: () => {},
       onMove: () => {},
       onUp: () => {}
     });
