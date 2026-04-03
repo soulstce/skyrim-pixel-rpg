@@ -21,8 +21,10 @@ export default class OverworldScene extends Phaser.Scene {
     this.activeInteractable = null;
 
     this.handleWindowBlur = () => this.clearTouchDirections();
-    this.input.addPointer(7);
+    this.input.addPointer(3);
     this.input.topOnly = false;
+    this.game.canvas.style.touchAction = 'none';
+    this.game.canvas.style.webkitTouchCallout = 'none';
     this.input.on('gameout', () => this.clearTouchDirections());
     this.input.on('pointercancel', () => this.clearTouchDirections());
     window.addEventListener('blur', this.handleWindowBlur);
@@ -220,14 +222,14 @@ export default class OverworldScene extends Phaser.Scene {
 
   buildControls() {
     this.ui.createMovementPad({
-      up: () => this.setTouchDirection('up', true),
-      upEnd: () => this.setTouchDirection('up', false),
-      left: () => this.setTouchDirection('left', true),
-      leftEnd: () => this.setTouchDirection('left', false),
-      down: () => this.setTouchDirection('down', true),
-      downEnd: () => this.setTouchDirection('down', false),
-      right: () => this.setTouchDirection('right', true),
-      rightEnd: () => this.setTouchDirection('right', false),
+      up: (pointer) => this.ui.startDirection('up', pointer),
+      upEnd: (pointer) => this.ui.stopDirection('up', pointer),
+      left: (pointer) => this.ui.startDirection('left', pointer),
+      leftEnd: (pointer) => this.ui.stopDirection('left', pointer),
+      down: (pointer) => this.ui.startDirection('down', pointer),
+      downEnd: (pointer) => this.ui.stopDirection('down', pointer),
+      right: (pointer) => this.ui.startDirection('right', pointer),
+      rightEnd: (pointer) => this.ui.stopDirection('right', pointer),
       action: () => this.handleAction()
     });
   }

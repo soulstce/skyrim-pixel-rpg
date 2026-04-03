@@ -2,7 +2,7 @@ export default class UISystem {
   constructor(scene) {
     this.scene = scene;
     this.buttons = [];
-    this.heldDirections = new Map();
+    this.directionPointers = new Map();
     this.createBaseHUD();
   }
 
@@ -104,12 +104,32 @@ export default class UISystem {
   clearButtons() {
     this.buttons.forEach((button) => button.destroy());
     this.buttons = [];
+    this.directionPointers.clear();
   }
 
-  createHeldButton(x, y, size, label, tint, onStart, onEnd) {
+  startDirection(dir, pointer) {
+    if (pointer?.event?.cancelable) {
+      pointer.event.preventDefault?.();
+    }
+    this.directionPointers.set(pointer.id, dir);
+    this.scene.setTouchDirection(dir, true);
+  }
+
+  stopDirection(dir, pointer) {
+    if (pointer && this.directionPointers.get(pointer.id) !== dir) {
+      return;
+    }
+    if (pointer) {
+      this.directionPointers.delete(pointer.id);
+    }
+    this.scene.setTouchDirection(dir, false);
+  }
+
+  createPressedButton(x, y, size, label, tint, onDown, onUp) {
     const container = this.scene.add.container(x, y).setScrollFactor(0).setDepth(950);
     const bg = this.scene.add.ellipse(0, 0, size, size, tint, 0.94)
-      .setStrokeStyle(2, 0xe8ebf1, 0.7)
+      .setStrokeStyle(2, 0xe8ebf1, 0.7);
+    const hit = this.scene.add.rectangle(0, 0, size + 18, size + 18, 0xffffff, 0.001)
       .setInteractive({ useHandCursor: true });
     const inner = this.scene.add.ellipse(0, 0, size - 10, size - 10, 0xffffff, 0.08);
     const text = this.scene.add.text(0, 0, label, {
@@ -118,21 +138,20 @@ export default class UISystem {
       color: '#ffffff'
     }).setOrigin(0.5);
 
-    const start = () => {
+    hit.on('pointerdown', (pointer) => {
       container.setScale(0.94);
-      onStart?.();
-    };
-    const end = () => {
+      onDown?.(pointer);
+    });
+    const release = (pointer) => {
       container.setScale(1);
-      onEnd?.();
+      onUp?.(pointer);
     };
+    hit.on('pointerup', release);
+    hit.on('pointerout', release);
+    hit.on('pointerupoutside', release);
+    hit.on('pointercancel', release);
 
-    bg.on('pointerdown', start);
-    bg.on('pointerup', end);
-    bg.on('pointerout', end);
-    bg.on('pointerupoutside', end);
-    bg.on('pointercancel', end);
-    container.add([inner, bg, text]);
+    container.add([bg, hit, inner, text]);
     this.buttons.push(container);
     return container;
   }
@@ -140,7 +159,8 @@ export default class UISystem {
   createActionButton(x, y, label, tint, onClick) {
     const container = this.scene.add.container(x, y).setScrollFactor(0).setDepth(950);
     const bg = this.scene.add.ellipse(0, 0, 92, 54, tint, 0.95)
-      .setStrokeStyle(2, 0xe8ebf1, 0.7)
+      .setStrokeStyle(2, 0xe8ebf1, 0.7);
+    const hit = this.scene.add.rectangle(0, 0, 108, 70, 0xffffff, 0.001)
       .setInteractive({ useHandCursor: true });
     const text = this.scene.add.text(0, 0, label, {
       fontFamily: 'Arial',
@@ -148,20 +168,20 @@ export default class UISystem {
       color: '#ffffff'
     }).setOrigin(0.5);
 
-    const press = () => {
+    hit.on('pointerdown', (pointer) => {
       container.setScale(0.94);
+      if (pointer?.event?.cancelable) {
+        pointer.event.preventDefault?.();
+      }
       onClick?.();
-    };
-    const release = () => {
-      container.setScale(1);
-    };
+    });
+    const release = () => container.setScale(1);
+    hit.on('pointerup', release);
+    hit.on('pointerout', release);
+    hit.on('pointerupoutside', release);
+    hit.on('pointercancel', release);
 
-    bg.on('pointerdown', press);
-    bg.on('pointerup', release);
-    bg.on('pointerout', release);
-    bg.on('pointerupoutside', release);
-    bg.on('pointercancel', release);
-    container.add([bg, text]);
+    container.add([bg, hit, text]);
     this.buttons.push(container);
     return container;
   }
@@ -172,11 +192,13 @@ export default class UISystem {
     const size = 44;
     this.clearButtons();
 
-    this.createHeldButton(baseX, baseY - size, size, '↑', 0x4a5b77, callbacks.up, callbacks.upEnd);
-    this.createHeldButton(baseX - size, baseY, size, '←', 0x4a5b77, callbacks.left, callbacks.leftEnd);
-    this.createHeldButton(baseX, baseY, size, '↓', 0x4a5b77, callbacks.down, callbacks.downEnd);
-    this.createHeldButton(baseX + size, baseY, size, '→', 0x4a5b77, callbacks.right, callbacks.rightEnd);
+    this.createPressedButton(baseX, baseY - size, size, '↑', 0x4a5b77, callbacks.up, callbacks.upEnd);
+    this.createPressedButton(baseX - size, baseY, size, '←', 0x4a5b77, callbacks.left, callbacks.leftEnd);
+    this.createPressedButton(baseX, baseY, size, '↓', 0x4a5b77, callbacks.down, callbacks.downEnd);
+    this.createPressedButton(baseX + size, baseY, size, '→', 0x4a5b77, callbacks.right, callbacks.rightEnd);
     this.createActionButton(this.scene.scale.width - 104, baseY - 2, 'Action', 0x7b5132, callbacks.action);
+
+    this.scene.input.setTopOnly(false);
   }
 
   createBattleButtons(callbacks = {}) {
