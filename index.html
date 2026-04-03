@@ -39,11 +39,47 @@
         image-rendering: pixelated;
         image-rendering: crisp-edges;
       }
+      #start-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(11, 16, 32, 0.92);
+      }
+      #start-overlay button {
+        appearance: none;
+        -webkit-appearance: none;
+        border: 3px solid #ffe5a3;
+        background: linear-gradient(180deg, #ffb84d, #d96b2d);
+        color: #1d140c;
+        font-family: Arial, sans-serif;
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        padding: 22px 34px;
+        border-radius: 16px;
+        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+        min-width: 260px;
+      }
+      #start-overlay button:active {
+        transform: scale(0.98);
+      }
     </style>
   </head>
   <body>
+    <div id="start-overlay">
+      <button id="start-button" type="button">START GAME</button>
+    </div>
     <div id="game"></div>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
-    <script type="module" src="./main.js?v=4"></script>
+    <script type="module" src="./main.js?v=5"></script>
+    <script>
+      const startButton = document.getElementById('start-button');
+      startButton?.addEventListener('click', () => {
+        window.__pokeStartGame?.();
+      }, { passive: true });
+    </script>
   </body>
 </html>

@@ -19,14 +19,14 @@ export default class TitleScene extends Phaser.Scene {
       color: '#c8d4ff'
     }).setOrigin(0.5);
 
-    this.add.text(width / 2, height / 2 + 20, 'Press Space or tap to begin', {
+    this.add.text(width / 2, height / 2 + 20, 'Press Space or start the game button', {
       fontFamily: 'Arial',
       fontSize: '16px',
       color: '#8dc8ff'
     }).setOrigin(0.5);
 
     this.startTriggered = false;
-    const begin = () => {
+    this.beginGame = () => {
       if (this.startTriggered) {
         return;
       }
@@ -35,28 +35,23 @@ export default class TitleScene extends Phaser.Scene {
       this.scene.start('OverworldScene');
     };
 
-    const canvas = this.game.canvas;
-    const onCanvasTouch = (event) => {
-      event.preventDefault?.();
-      begin();
+    this.handleRegistryChange = (_parent, value) => {
+      if (value) {
+        this.beginGame();
+      }
     };
 
-    this.input.keyboard.once('keydown-SPACE', begin);
-    this.input.once('pointerdown', begin);
+    this.registry.events.on('changedata-gameStarted', this.handleRegistryChange);
+    this.input.keyboard.once('keydown-SPACE', () => {
+      this.registry.set('gameStarted', true);
+    });
 
-    if (canvas) {
-      canvas.addEventListener('click', begin, { passive: true });
-      canvas.addEventListener('touchend', onCanvasTouch, { passive: false });
-      canvas.addEventListener('pointerdown', begin, { passive: true });
-
-      this.cleanupBeginListeners = () => {
-        canvas.removeEventListener('click', begin);
-        canvas.removeEventListener('touchend', onCanvasTouch);
-        canvas.removeEventListener('pointerdown', begin);
-      };
+    if (this.registry.get('gameStarted')) {
+      this.beginGame();
     }
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.registry.events.off('changedata-gameStarted', this.handleRegistryChange);
       this.cleanupBeginListeners?.();
     });
   }

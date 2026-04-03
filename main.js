@@ -42,4 +42,9 @@ const config = {
   }
 };
 
-new Phaser.Game(config);
+const game = new Phaser.Game(config);
+window.__pokeGame = game;
+window.__pokeStartGame = () => {
+  game.registry.set('gameStarted', true);
+  document.getElementById('start-overlay')?.remove();
+};

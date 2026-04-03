@@ -154,6 +154,16 @@ export default class BootScene extends Phaser.Scene {
       g.fillStyle(0x5b534f, 1).fillRect(8, 4, 16, 4);
     });
 
+    this.fallbackTimer = this.time.delayedCall(5000, () => {
+      if (this.scene.isActive('BootScene')) {
+        this.scene.start('TitleScene');
+      }
+    });
+
     this.scene.start('TitleScene');
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.fallbackTimer?.remove(false);
+    });
   }
 }
