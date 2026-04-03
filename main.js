@@ -1,5 +1,4 @@
 import BootScene from './src/scenes/BootScene.js';
-import TitleScene from './src/scenes/TitleScene.js';
 import OverworldScene from './src/scenes/OverworldScene.js';
 import BattleScene from './src/scenes/BattleScene.js';
 
@@ -33,7 +32,7 @@ const config = {
       }
     }
   },
-  scene: [BootScene, TitleScene, OverworldScene, BattleScene],
+  scene: [BootScene, OverworldScene, BattleScene],
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
@@ -44,7 +43,20 @@ const config = {
 
 const game = new Phaser.Game(config);
 window.__pokeGame = game;
+window.__pokeStartQueued = Boolean(window.__pokeStartQueued);
 window.__pokeStartGame = () => {
-  game.registry.set('gameStarted', true);
-  document.getElementById('start-overlay')?.remove();
+  const overlay = document.getElementById('start-overlay');
+  if (overlay) {
+    overlay.remove();
+  }
+
+  if (window.__pokeGame?.registry) {
+    window.__pokeGame.registry.set('gameStarted', true);
+  } else {
+    window.__pokeStartQueued = true;
+  }
 };
+
+if (window.__pokeStartQueued) {
+  window.__pokeGame?.registry?.set('gameStarted', true);
+}

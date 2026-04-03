@@ -154,16 +154,45 @@ export default class BootScene extends Phaser.Scene {
       g.fillStyle(0x5b534f, 1).fillRect(8, 4, 16, 4);
     });
 
-    this.fallbackTimer = this.time.delayedCall(5000, () => {
-      if (this.scene.isActive('BootScene')) {
-        this.scene.start('TitleScene');
-      }
-    });
+    this.loadingText = this.add.text(this.scale.width / 2, this.scale.height / 2 + 130, 'Loading...', {
+      fontFamily: 'Arial',
+      fontSize: '18px',
+      color: '#c8d4ff'
+    }).setOrigin(0.5);
 
-    this.scene.start('TitleScene');
+    this.startTriggered = false;
+    this.startGame = () => {
+      if (this.startTriggered) {
+        return;
+      }
+      this.startTriggered = true;
+      this.cleanupBootListeners?.();
+      this.scene.start('OverworldScene');
+    };
+
+    this.handleRegistryChange = (_parent, value) => {
+      if (value) {
+        this.startGame();
+      }
+    };
+
+    this.cleanupBootListeners = () => {
+      this.registry.events.off('changedata-gameStarted', this.handleRegistryChange);
+    };
+
+    this.registry.set('gameStarted', Boolean(this.registry.get('gameStarted')) || Boolean(window.__pokeStartQueued));
+    window.__pokeStartQueued = false;
+
+    this.registry.events.on('changedata-gameStarted', this.handleRegistryChange);
+
+    if (this.registry.get('gameStarted')) {
+      this.startGame();
+    } else {
+      this.loadingText.setText('Waiting for START GAME');
+    }
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.fallbackTimer?.remove(false);
+      this.cleanupBootListeners?.();
     });
   }
 }
