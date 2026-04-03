@@ -26,18 +26,22 @@ export default class TitleScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     this.startTriggered = false;
-    this.beginGame = () => {
+    const beginGame = () => {
       if (this.startTriggered) {
         return;
       }
       this.startTriggered = true;
-      this.cleanupBeginListeners?.();
       this.scene.start('OverworldScene');
     };
 
+    if (this.registry.get('gameStarted')) {
+      beginGame();
+      return;
+    }
+
     this.handleRegistryChange = (_parent, value) => {
       if (value) {
-        this.beginGame();
+        beginGame();
       }
     };
 
@@ -45,14 +49,12 @@ export default class TitleScene extends Phaser.Scene {
     this.input.keyboard.once('keydown-SPACE', () => {
       this.registry.set('gameStarted', true);
     });
-
-    if (this.registry.get('gameStarted')) {
-      this.beginGame();
-    }
+    this.input.once('pointerdown', () => {
+      this.registry.set('gameStarted', true);
+    });
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.registry.events.off('changedata-gameStarted', this.handleRegistryChange);
-      this.cleanupBeginListeners?.();
     });
   }
 }
