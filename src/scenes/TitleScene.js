@@ -25,8 +25,39 @@ export default class TitleScene extends Phaser.Scene {
       color: '#8dc8ff'
     }).setOrigin(0.5);
 
-    const begin = () => this.scene.start('OverworldScene');
+    this.startTriggered = false;
+    const begin = () => {
+      if (this.startTriggered) {
+        return;
+      }
+      this.startTriggered = true;
+      this.cleanupBeginListeners?.();
+      this.scene.start('OverworldScene');
+    };
+
+    const canvas = this.game.canvas;
+    const onCanvasTouch = (event) => {
+      event.preventDefault?.();
+      begin();
+    };
+
     this.input.keyboard.once('keydown-SPACE', begin);
     this.input.once('pointerdown', begin);
+
+    if (canvas) {
+      canvas.addEventListener('click', begin, { passive: true });
+      canvas.addEventListener('touchend', onCanvasTouch, { passive: false });
+      canvas.addEventListener('pointerdown', begin, { passive: true });
+
+      this.cleanupBeginListeners = () => {
+        canvas.removeEventListener('click', begin);
+        canvas.removeEventListener('touchend', onCanvasTouch);
+        canvas.removeEventListener('pointerdown', begin);
+      };
+    }
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.cleanupBeginListeners?.();
+    });
   }
 }
